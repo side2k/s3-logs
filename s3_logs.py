@@ -2,6 +2,7 @@ import os
 from os import path
 import subprocess
 from datetime import datetime, timedelta
+import re
 
 QUOTE_LEFT = '["'
 QUOTE_RIGHT = ']"'
@@ -99,9 +100,25 @@ def get_buckets():
             buckets += [bucket_name.strip()]
     return buckets
 
+def log_timestamp(filename):
+    ts_str, _, _ = filename.rpartition('-')
+    ts_str = re.sub(r'^[^0-9]+', r'', ts_str)
+    return datetime.strptime(ts_str, '%Y-%m-%d-%H-%M-%S')
+
 def get_log_list(bucket_name):
     process = subprocess.Popen(['s3cmd', 'ls', 's3://%s/logs/' % bucket_name], stdout=subprocess.PIPE)
-    return parse_ls(process.stdout.readlines())
+    log_list = []
+    for log_file in parse_ls(process.stdout.readlines()):
+        file_path = log_file['path']
+        _, _, filename = file_path.rpartition('/')
+        if filename:
+            log_list += [(log_timestamp(filename), file_path)]
+        
+    def compare_logs(log1, log2):
+        return cmp(log1[0], log2[0])
+    
+    log_list.sort(compare_logs)
+    return log_list
     
     
 def get_cached_data(cache_path = CACHE_PATH_DEFAULT):
